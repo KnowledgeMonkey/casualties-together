@@ -686,7 +686,17 @@ public class NetBody : MonoBehaviour {
         MedicalSync.Server_QueueSendCharacterHealth(this, false);
     }
 
+    bool lastSyncedConscious = true;
+
     protected void LateUpdate() {
+        if (Net.IsRunning && Net.IsServer && IsPlayer && SharedMain.LocalWorldIsGenerated && MedicalSync.CanSyncHealth()) {
+            bool conscious = body.conscious;
+            if (conscious != lastSyncedConscious) {
+                lastSyncedConscious = conscious;
+                MedicalSync.ForceHealth(this);
+            }
+        }
+
         HugSession.TickArms();
 
         // consoleScript noclip writes carrier transform in Update - after FixedUpdate pin.

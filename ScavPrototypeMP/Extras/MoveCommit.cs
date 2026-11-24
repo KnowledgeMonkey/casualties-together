@@ -474,16 +474,18 @@ public static class MoveCommit {
         }
 
         var rows = new List<Row>(touched.Count);
-        for (int i = 0; i < touched.Count; i++)
-            rows.Add(Current(touched[i]));
+        for (int i = 0; i < touched.Count; i++) {
+            if (TryReadCurrent(touched[i], out Row row))
+                rows.Add(row);
+        }
         for (int i = 0; i < moves.Count; i++) {
             bool listed = false;
             for (int j = 0; j < rows.Count; j++) {
                 if (rows[j].item == moves[i].item)
                     listed = true;
             }
-            if (!listed)
-                rows.Add(Current(moves[i].item));
+            if (!listed && TryReadCurrent(moves[i].item, out Row row))
+                rows.Add(row);
         }
         return new Receipt {
             session = session,
@@ -619,8 +621,11 @@ public static class MoveCommit {
 
     static Receipt Refuse(uint session, uint attempt, MoveReason reason, List<Move> moves) {
         var rows = new List<Row>(moves.Count);
-        for (int i = 0; i < moves.Count; i++)
-            rows.Add(Current(moves[i].item));
+        // A rejected swap can still have live items. Send their real parents.
+        for (int i = 0; i < moves.Count; i++) {
+            if (TryReadCurrent(moves[i].item, out Row row))
+                rows.Add(row);
+        }
 
         if (log.verbose) Plugin.log.LogInfo("[move] " + reason + " attempt " + attempt);
         return new Receipt {
@@ -632,29 +637,24 @@ public static class MoveCommit {
         };
     }
 
-    static Row Current(ushort id) {
-        var row = new Row { item = id };
-        if (!ItemSync.TryGetItemSyncInfo((knetid)id, out SyncInfo si) || si == null || si.item == null)
-            return row;
-        ItemSync.ItemsContainerInfo ici = ItemSync.ItemGetContainerInfo(si.item);
+    static bool TryReadCurrent(ushort id, out Row row) {
+        row = new Row { item = id };
+        if (!ItemSync.TryGetItem(id, out SyncInfo si, out Item item) || si.IsDestroyed || item == null)
+            return false;
+        ItemSync.ItemsContainerInfo ici = ItemSync.ItemGetContainerInfo(item);
         row.data = ici.containerExtraData1;
         row.net = ici.knetid;
-        return row;
+        return true;
     }
 
     static void Apply(Receipt receipt) {
-        if (receipt == null)
-            return;
-        if (receipt.reason == MoveReason.StillSyncing)
+        if (receipt == null || receipt.session != _session || receipt.reason == MoveReason.StillSyncing)
             return;
         if (Attempts.TryGetValue(receipt.attempt, out Attempt attempt))
             Release(attempt);
-        if (receipt.reason == MoveReason.Missing) {
-            DestroyGone(receipt);
-            return;
-        }
         if (receipt.rows == null)
             return;
+        // Object destruction comes from SyncInfo. An omitted row has no parent update.
         _applying = true;
         try {
             for (int i = 0; i < receipt.rows.Count; i++) {
@@ -711,24 +711,6 @@ public static class MoveCommit {
         if (move.kind == MoveKind.Worn)
             return data == 100 && net == move.destNet;
         return data == (byte)(200 + move.destSlot) && net == move.destNet;
-    }
-
-    // host lost this id. delete the local one, dont drop a copy on the ground.
-    static void DestroyGone(Receipt receipt) {
-        if (receipt.rows == null)
-            return;
-        _applying = true;
-        try {
-            for (int i = 0; i < receipt.rows.Count; i++) {
-                if (!Fresh(receipt.rows[i].item, receipt.attempt))
-                    continue;
-                if (!ItemSync.TryGetItem(receipt.rows[i].item, out _, out Item item) || item == null)
-                    continue;
-                UnityEngine.Object.Destroy(item.gameObject);
-            }
-        } finally {
-            _applying = false;
-        }
     }
 
     static void ApplyRow(Row row) {

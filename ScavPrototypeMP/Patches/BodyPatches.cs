@@ -1430,6 +1430,30 @@ namespace Together {
         }
     }
 
+    [HarmonyPatch(typeof(Body), "HandleBody")]
+    static class Body_HandleBody_KnockoutRecovery {
+        static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) {
+            var riseRate = AccessTools.Field(typeof(Body), nameof(Body.consciousnessRiseRate));
+            var adjustRate = AccessTools.Method(typeof(Body_HandleBody_KnockoutRecovery), nameof(RecoveryRate));
+            foreach (CodeInstruction instruction in instructions) {
+                yield return instruction;
+                if (instruction.LoadsField(riseRate)) {
+                    yield return new CodeInstruction(OpCodes.Ldarg_0);
+                    yield return new CodeInstruction(OpCodes.Call, adjustRate);
+                }
+            }
+        }
+
+        static float RecoveryRate(float rate, Body body) {
+            // Vanilla still computes the target from injury, oxygen, blood pressure and other vitals.
+            if (Net.IsRunning && Net.IsServer && body.alive && !body.conscious && !body.sleeping && !body.isCriticallyDying
+                && body.TryGetNetBody(out NetBody nb) && nb.IsPlayer) {
+                return rate * 3f;
+            }
+            return rate;
+        }
+    }
+
     // sleepCycleSpeed is both conscious drain and unconscious regen.
     // median pull flips sign while unconscious so the lobby trends together.
     // solo sleep ramps to 3x over SoloSleepBonusRampSeconds.

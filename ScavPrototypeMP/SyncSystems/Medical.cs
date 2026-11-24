@@ -413,7 +413,7 @@ public struct CharacterSkillsStateSyncPacket : INetSerializeByMemcpy {
 }
 
 public struct CharacterHealthStateSyncPacket : INetSerializeByMemcpy {
-    ushort Tick;
+    internal ushort Tick;
 
     Bitset8 pb1;
     Bitset8 pb2;
@@ -700,17 +700,13 @@ public struct CharacterHealthStateSyncPacket : INetSerializeByMemcpy {
         Tick = Net.ServerTick;
     }
 
+    internal bool CanFollow(ushort previousTick, bool confirm) {
+        int diff = LiteEntitySystem.Utils.SequenceDiff(Tick, previousTick);
+        return diff > 0 || (diff == 0 && confirm);
+    }
+
     public void Apply(NetBody npc, bool force = false) {
-        var seqDiff = LiteEntitySystem.Utils.SequenceDiff(Tick, npc._lastHealthPacketReceiveTick);
-        if (
-            !force &&
-            seqDiff <= 0
-        ) {
-#if TESTING 
-            if (seqDiff < 0) {
-                log.warn($"Health Packet too old: Diff: {seqDiff},  {npc}");
-            }
-#endif 
+        if (!CanFollow(npc._lastHealthPacketReceiveTick, force)) {
             return;
         }
         npc._lastHealthPacketReceiveTick = Tick;
@@ -2392,36 +2388,35 @@ public static class Limb_ImpactDamage_MultiplayerPatch {
 
 internal class MedicalSync : CasualtiesTogetherSingleton {
     static bool stolenformp_lastHeartBeating = false;
-    static readonly Dictionary<knetid, CharacterHealthStateSyncPacket> HeldHealth = new Dictionary<knetid, CharacterHealthStateSyncPacket>();
+    static readonly Dictionary<knetid, (CharacterHealthStateSyncPacket State, bool Confirm)> HeldHealth = new();
     static readonly List<knetid> HeldHealthDone = new List<knetid>();
 
-    // latest body snapshot per id. applied once this client is in the game and that body exists. no expiry.
-    static readonly HashSet<knetid> ForceHeld = new HashSet<knetid>();
-
+    // Keep the newest host snapshot until the client can apply it.
     internal static void HoldHealth(knetid id, CharacterHealthStateSyncPacket health, bool force = false) {
-        if (force)
-            ForceHeld.Add(id);
+        if (HeldHealth.TryGetValue(id, out var held) && !health.CanFollow(held.State.Tick, force)) {
+            health = held.State;
+            force = held.Confirm;
+        }
         if (KrokV5Optimization.FixInvSync.InGame() && NetBody.TryGetNetBodyFromId(id, out NetBody nb) && nb.body != null) {
-            bool confirm = force || ForceHeld.Remove(id);
-            health.Apply(nb, confirm);
+            HeldHealth.Remove(id);
+            health.Apply(nb, force);
             return;
         }
-        HeldHealth[id] = health;
+        HeldHealth[id] = (health, force);
     }
 
     internal static void FlushHeldHealth() {
         if (!Util.IsInWorld()) {
             HeldHealth.Clear();
-            ForceHeld.Clear();
             return;
         }
         if (!KrokV5Optimization.FixInvSync.InGame() || HeldHealth.Count == 0)
             return;
         HeldHealthDone.Clear();
-        foreach (KeyValuePair<knetid, CharacterHealthStateSyncPacket> pair in HeldHealth) {
+        foreach (var pair in HeldHealth) {
             if (!NetBody.TryGetNetBodyFromId(pair.Key, out NetBody nb) || nb.body == null)
                 continue;
-            pair.Value.Apply(nb, ForceHeld.Remove(pair.Key));
+            pair.Value.State.Apply(nb, pair.Value.Confirm);
             HeldHealthDone.Add(pair.Key);
         }
         for (int i = 0; i < HeldHealthDone.Count; i++)
@@ -2635,9 +2630,8 @@ internal class MedicalSync : CasualtiesTogetherSingleton {
 
             writer.CompressWriter();
 
-            // a forced push is a level-up or a carried-weight tick. the slow unreliable
-            // round robin is what made crafting intelligence show up late, or not at all.
-            Net.Server_SendToClients(force ? DeliveryMethod.ReliableUnordered : DeliveryMethod.Unreliable, writer, clientIds: ServerMain.AllClientIdsExceptHost);
+            // Several forced changes can share a tick. Keep those confirmations in send order.
+            Net.Server_SendToClients(force ? DeliveryMethod.ReliableOrdered : DeliveryMethod.Unreliable, writer, clientIds: ServerMain.AllClientIdsExceptHost);
 
             // WRITER END;
         }
@@ -2777,7 +2771,6 @@ internal class MedicalSync : CasualtiesTogetherSingleton {
 
                 if (npc._SERVER_healthsync_skip_frame) {
                     npc._SERVER_healthsync_skip_frame = false;
-                    _healthsync_cur_body++;
                     continue;
                 }
                 if (!npc.body.alive) {
