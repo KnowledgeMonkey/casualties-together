@@ -445,9 +445,13 @@ namespace Together {
         private void Start() {
             Invoke(nameof(DelayedCoroutineToSkipScavIntro), 0.5f);
             log.LogInfo($"Invoked main {MyPluginInfo.PLUGIN_GUID} function, 1s...");
+            if (SUCCESFULLY_INITIALIZED) {
+                ForkUpdates.ForkUpdater.Initialize();
+            }
         }
 
         private void OnDestroy() {
+            ForkUpdates.ForkUpdater.Stop();
             try {
                 OptimizerMain.Shutdown();
             } catch (Exception e) { }

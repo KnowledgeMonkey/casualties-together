@@ -1540,7 +1540,29 @@ public static class UIMainMenu {
             DrawRuleRow(field, canEdit, bounds, coopFixRuleLabelWidth);
         }
         coopFixRuleLabelWidth = Mathf.Min(bounds.width * 0.5f, _GUI____RenderRuleField_cur_max_width);
+        RenderForkUpdater();
         GUILayout.EndScrollView();
+    }
+
+    static void RenderForkUpdater() {
+        if (ForkUpdates.ForkUpdater.Status == null) {
+            return;
+        }
+        GUILayout.Space(12);
+        GUI.skin.label.alignment = TextAnchor.MiddleLeft;
+        if (ForkUpdates.ForkUpdater.Installed) {
+            bool enabled = ForkUpdates.ForkUpdater.Enabled;
+            if (GUILayout.Toggle(enabled, Lang.Get("fork_update_auto")) != enabled) {
+                ForkUpdates.ForkUpdater.SetEnabled(!enabled);
+            }
+            bool guiEnabled = GUI.enabled;
+            GUI.enabled = guiEnabled && ForkUpdates.ForkUpdater.CanCheck;
+            if (GUILayout.Button(Lang.Get("fork_update_check"), GUILayout.ExpandWidth(false))) {
+                ForkUpdates.ForkUpdater.Check();
+            }
+            GUI.enabled = guiEnabled;
+        }
+        GUILayout.Label(Lang.Get(ForkUpdates.ForkUpdater.Status));
     }
 
     static void DrawRuleRow(FieldInfo field, bool canEdit, Rect bounds, float labelWidth) {

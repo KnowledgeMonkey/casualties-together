@@ -101,7 +101,7 @@
 		<FullModVersion>$(ModVersion)dev</FullModVersion>
 	</PropertyGroup>
 	<PropertyGroup Condition="!Exists('$(SlnRoot)ScavPrototypeMP\Proprietary\file.cs')">
-		<FullModVersion>$(ModVersion)-coopfix.2</FullModVersion>
+		<FullModVersion>$(ModVersion)-coopfix.3</FullModVersion>
 	</PropertyGroup>
 
 	<Target Name="EnsureGamePathsResolved" BeforeTargets="PrepareForBuild">
