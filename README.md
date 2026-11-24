@@ -1,8 +1,8 @@
 # Casualties: Together Co-op Fix
 
-This fork speeds up knockout recovery for medically stable players and restores surviving items to their host-confirmed positions when an inventory move is rejected.
+This fork speeds up knockout recovery for medically stable players and restores surviving items to their host-confirmed positions when an inventory move is rejected. In the multiplayer menu, the **el sus** tab lets hosts set recovery speed or enable silent teammate knockout and recovery alerts.
 
-Version `5.5.5-coopfix.1` targets the Windows full game, version `1.0.2`. Install the same fork build on the host and every joining player. [Download the update](https://github.com/KnowledgeMonkey/casualties-together/releases/tag/v5.5.5-coopfix.1) and follow the [installation steps](INSTALLATION-COOP-FIX.md).
+Version `5.5.5-coopfix.2` targets the Windows full game, version `1.0.2`. Install the same fork build on the host and every joining player. [Download the update](https://github.com/KnowledgeMonkey/casualties-together/releases/tag/v5.5.5-coopfix.2) and follow the [installation steps](INSTALLATION-COOP-FIX.md).
 
 Based on [Casualties: Together](https://github.com/creaturefeaturelarry/casualties-together) by creaturefeaturelarry and contributors. The files below describe the upstream mod.
 

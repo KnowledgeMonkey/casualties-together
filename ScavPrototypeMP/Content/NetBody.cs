@@ -686,14 +686,19 @@ public class NetBody : MonoBehaviour {
         MedicalSync.Server_QueueSendCharacterHealth(this, false);
     }
 
-    bool lastSyncedConscious = true;
+    KnockoutStatus knockoutStatus;
 
     protected void LateUpdate() {
-        if (Net.IsRunning && Net.IsServer && IsPlayer && SharedMain.LocalWorldIsGenerated && MedicalSync.CanSyncHealth()) {
+        if (Net.IsRunning && Net.IsServer && IsPlayer && SharedMain.LocalWorldIsGenerated) {
             bool conscious = body.conscious;
-            if (conscious != lastSyncedConscious) {
-                lastSyncedConscious = conscious;
+            bool alertsAllowed = Multiplayer.rules.KnockoutTeamAlerts && body.alive && !body.sleeping
+                && (plr.IsLocal || plr.ServerPlayerState?.is_loaded_in == true);
+            var (sendHealth, sendAlert) = knockoutStatus.Update(conscious, alertsAllowed);
+            if (sendHealth && MedicalSync.CanSyncHealth()) {
                 MedicalSync.ForceHealth(this);
+            }
+            if (sendAlert) {
+                ServerMain.AnnounceKnockout(plr, conscious);
             }
         }
 
@@ -1029,6 +1034,9 @@ public class NetBody : MonoBehaviour {
     public Rigidbody2D rb => body.rb;
 
     public void SetPlayer(ScavPlayer newPlayer) {
+        if (plr != newPlayer) {
+            knockoutStatus = default;
+        }
         ScavPlayer.BodyToPlayerDict.Remove(body);
         if (IsPlayer) {
             this.plr.body = null;

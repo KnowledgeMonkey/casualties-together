@@ -1448,7 +1448,7 @@ namespace Together {
             // Vanilla still computes the target from injury, oxygen, blood pressure and other vitals.
             if (Net.IsRunning && Net.IsServer && body.alive && !body.conscious && !body.sleeping && !body.isCriticallyDying
                 && body.TryGetNetBody(out NetBody nb) && nb.IsPlayer) {
-                return rate * 3f;
+                return rate * Multiplayer.rules.KnockoutRecoveryMultiplier;
             }
             return rate;
         }

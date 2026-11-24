@@ -489,6 +489,23 @@ public class ServerMain : MonoBehaviour {
         // WRITER END;
     }
 
+    internal static void AnnounceKnockout(ScavPlayer player, bool recovered) {
+        var targets = ScavPlayer.AllPlayers
+            .Where(other => other != player && other.body != null
+                && (other.IsLocal || other.ServerPlayerState?.is_loaded_in == true)
+                && (!Multiplayer.rules.Teams || player.IsInSameTeamAs(other)))
+            .Select(other => other.playerId)
+            .ToList();
+        if (targets.Count == 0) {
+            return;
+        }
+
+        var writer = Net.CreateWriter(NetmsgId.CLIENT_AnnounceDoAlert);
+        writer.Put(Lang.FormatMsg(recovered ? "knockout_teammate_recovered" : "knockout_teammate_down", player.playerName));
+        writer.Put(false);
+        Net.Server_SendToClients(DeliveryMethod.ReliableOrdered, writer, targets);
+    }
+
     public static bool ForceTalkerSayAndAnnounce(in SyncInfo si, in string msg, IReadOnlyList<knetid> targets = null) {
 
         if (Util.TryGetTalkerOnObject(si.go, out var foundtalker, out var _)) {

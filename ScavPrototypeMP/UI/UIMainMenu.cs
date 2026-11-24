@@ -1435,7 +1435,8 @@ public static class UIMainMenu {
 
     static string[] _CONNECTIONSECONDPANEL_TOOLBAR_STRS = new string[] {
         "AAAAAAAAA",
-        "BBBBBBBBB"
+        "BBBBBBBBB",
+        "el sus"
     };
     static int _CONNECTIONSECONDPANEL_TOOLBAR = 1;
     static void _GUI__ConnectionSecondPanel(Rect r2) {
@@ -1521,6 +1522,36 @@ public static class UIMainMenu {
             GUILayout.Label(Lang.Get("mmct_nobody"));
         }
 
+    }
+
+    static readonly FieldInfo[] CoopFixRuleFields = {
+        typeof(MultiplayerGameRules).GetField(nameof(MultiplayerGameRules.KnockoutRecoveryMultiplier)),
+        typeof(MultiplayerGameRules).GetField(nameof(MultiplayerGameRules.KnockoutTeamAlerts)),
+    };
+
+    static Vector2 coopFixRulesScroll;
+    static float coopFixRuleLabelWidth = 300;
+
+    static void RenderCoopFixRules(Rect bounds) {
+        bool canEdit = Con.CanExecuteAdminCommands();
+        coopFixRulesScroll = GUILayout.BeginScrollView(coopFixRulesScroll);
+        _GUI____RenderRuleField_cur_max_width = 0;
+        foreach (FieldInfo field in CoopFixRuleFields) {
+            DrawRuleRow(field, canEdit, bounds, coopFixRuleLabelWidth);
+        }
+        coopFixRuleLabelWidth = Mathf.Min(bounds.width * 0.5f, _GUI____RenderRuleField_cur_max_width);
+        GUILayout.EndScrollView();
+    }
+
+    static void DrawRuleRow(FieldInfo field, bool canEdit, Rect bounds, float labelWidth) {
+        GUILayout.BeginHorizontal();
+        try {
+            _GUI____RenderRuleField(field, canEdit, bounds, labelWidth);
+        } catch (Exception e) {
+            log.error($"Could not render rule {field.Name}: {e}");
+        } finally {
+            GUILayout.EndHorizontal();
+        }
     }
 
     static void _GUI___ConnectionSecondPanel_ContentRender_RenderRulesList(Rect r2) {
@@ -1629,7 +1660,9 @@ public static class UIMainMenu {
         _SCROLL_FULLRULELIST = GUILayout.BeginScrollView(_SCROLL_FULLRULELIST);
 
 
-        var rule_fields = typeof(MultiplayerGameRules).GetFields(BindingFlags.Instance | BindingFlags.Public).ToList();
+        var rule_fields = typeof(MultiplayerGameRules).GetFields(BindingFlags.Instance | BindingFlags.Public)
+            .Where(field => CoopFixRuleFields.All(forkField => forkField.Name != field.Name))
+            .ToList();
 
         var searching = !String.IsNullOrWhiteSpace(_GUI____RenderRuleField_search);
         var groups = RuleCategories.Group(rule_fields);
@@ -1660,13 +1693,7 @@ public static class UIMainMenu {
                 }
                 if (!open) continue;
                 foreach (var fld in fields) {
-                    GUILayout.BeginHorizontal();
-                    try {
-                        _GUI____RenderRuleField(fld, can_edit, r2);
-                    } catch (Exception e) {
-                        log.error($"_GUI___ConnectionSecondPanel_ContentRender_RenderRulesList: \nFLD: {fld} \n{e.ToString()}");
-                    }
-                    GUILayout.EndHorizontal();
+                    DrawRuleRow(fld, can_edit, r2, _GUI____RenderRuleField_last_max_width);
                 }
             }
             _GUI____RenderRuleField_last_max_width = Mathf.Min(r2.width * 0.5f, _GUI____RenderRuleField_cur_max_width);
@@ -1707,7 +1734,7 @@ public static class UIMainMenu {
     static float _GUI____RenderRuleField_last_max_width = 300;
     static float _GUI____RenderRuleField_cur_max_width = 0;
 
-    static void _GUI____RenderRuleField(FieldInfo fld, bool can_edit, in Rect r2) {
+    static void _GUI____RenderRuleField(FieldInfo fld, bool can_edit, in Rect r2, float labelWidth) {
 
         bool do_tooltip = false;
         string ruleName = Lang.Get("rule_name_" + fld.Name, true) ?? fld.Name;
@@ -1736,7 +1763,7 @@ public static class UIMainMenu {
         } else {
             GUI.skin.label.alignment = TextAnchor.MiddleRight;
 
-            GUILayout.Label(ruleName, GUILayout.Width(_GUI____RenderRuleField_last_max_width));
+            GUILayout.Label(ruleName, GUILayout.Width(Mathf.Min(labelWidth, r2.width * 0.5f)));
             do_tooltip = UIBullshit.CheckCursorOverlap(GUIUtility.GUIToScreenRect(GUILayoutUtility.GetLastRect()));
 
             TypedReference rulesref = __makeref(Multiplayer.rules);
@@ -1880,13 +1907,9 @@ public static class UIMainMenu {
             GUILayout.EndScrollView();
 
         } else if (_CONNECTIONSECONDPANEL_TOOLBAR == 1) {
-            //GUI.skin.label.alignment = TextAnchor.UpperRight;
-            //gUILayout.Box();
-
-
             _GUI___ConnectionSecondPanel_ContentRender_RenderRulesList(r2);
-
-
+        } else if (_CONNECTIONSECONDPANEL_TOOLBAR == 2) {
+            RenderCoopFixRules(r2);
         }
         GUI.skin.label.alignment = TextAnchor.UpperLeft;
         GUI.skin.label.fontSize = ogfontsize;

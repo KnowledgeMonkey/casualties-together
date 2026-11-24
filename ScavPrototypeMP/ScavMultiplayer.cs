@@ -201,6 +201,16 @@ public partial struct MultiplayerGameRules : INetSerializeByMemcpy {
     public float AdditionalHealthDecay = 1f; // DONE      // extra bleed and brain damage while the red circle is up and no one is close enough to help
     public bool LastStandAllowed = true;
 
+    internal const float MinKnockoutRecovery = 1f;
+    internal const float MaxKnockoutRecovery = 10f;
+    internal const float DefaultKnockoutRecovery = 3f;
+    [MultiplayerRuleFloat(MinKnockoutRecovery, MaxKnockoutRecovery, "×")]
+    public float KnockoutRecoveryMultiplier = DefaultKnockoutRecovery;
+    public bool KnockoutTeamAlerts = false;
+
+    internal static float NormalizeKnockoutRecovery(float value) =>
+        float.IsNaN(value) ? DefaultKnockoutRecovery : Math.Clamp(value, MinKnockoutRecovery, MaxKnockoutRecovery);
+
     // teammate list greys out and stops tracking people past wound-view range
     public bool TeammateListUsesRange = true;
 
@@ -1487,6 +1497,7 @@ S_LerpFactor: {_entityManager.LerpFactor}";
 
     public static void ApplyGameRules() {
 
+        rules.KnockoutRecoveryMultiplier = MultiplayerGameRules.NormalizeKnockoutRecovery(rules.KnockoutRecoveryMultiplier);
         Limb.dislocationHealSpeed = OG_dislocationHealSpeed + OG_dislocationHealSpeed * rules.AdditionalHealthRegen;
         Limb.boneHealSpeed = OG_boneHealSpeed + OG_boneHealSpeed * rules.AdditionalHealthRegen;
 
